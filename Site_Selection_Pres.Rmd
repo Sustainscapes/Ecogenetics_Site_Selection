@@ -1,0 +1,171 @@
+---
+title: "Site Selection"
+author: "Derek Corcoran"
+date: "`r format(Sys.time(), '%d/%m, %Y')`"
+output:
+  ioslides_presentation:
+    widescreen: true
+    incremental: true
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, cache = FALSE, tidy = TRUE, tidy.opts = list(width.cutoff = 50))
+library(tidyverse)
+library(broom)
+library(kableExtra)
+library(knitr)
+library(plotly)
+library(crosstalk)
+library(leaflet)
+library(terra)
+library(sf)
+options("kableExtra.html.bsTable" = T)
+```
+
+## Candidate plots
+
+```{r}
+AllPlots <- readRDS("AllPlots.rds")
+```
+
+* 100,594 sites
+* Includes NOVANA, Biowide and paragraph 3
+
+## Filter by Dry nature
+
+```{r}
+DryNaturePlots <- readRDS("DryNaturePlot.rds")  %>%
+  sf::st_transform('+proj=longlat +datum=WGS84')
+```
+
+* only `r prettyNum(nrow(DryNaturePlots), big.mark = ",")` of the plots are dry Nature
+
+```{r}
+leaflet(DryNaturePlots) %>% 
+  addTiles() %>% 
+  addCircleMarkers(clusterOptions = markerClusterOptions())
+```
+
+## Select by higher diversity
+
+* Select highest (Diversity, species richness and Artscore)
+* Ensure 10 km minimum distance to closest neighbour
+* Compute 
+    + Patch area [ha]
+    + Mean proportion of Dry Nature (500, 1000, 5000, 10000)
+    + CV of dry nature
+* Only for habitats with more than 5 occurrences
+
+## Proportion vs CV
+
+```{r}
+Summary <- readRDS("Summary.rds")
+MoreThanFive <- Summary %>%
+  as.data.frame() %>%
+  dplyr::filter(nature_dry_cv < median(Summary$nature_dry_cv)) %>% 
+  replace(is.na(.), 0) %>%
+  group_by(habitat) %>%
+  summarise(n = n()) %>%
+  dplyr::filter(n > 5) %>%
+  arrange(desc(n))
+
+
+G <- ggplot(Summary, aes(x = nature_dry_mean, y = nature_dry_cv)) + geom_point() +
+  theme_bw() +
+  geom_hline(yintercept = median(Summary$nature_dry_cv), lty = 2, color = "red") +
+  labs(y = "Coefficient of variation of Nature dry", x = "Average proportion of nature dry")
+
+ggplotly(G)
+```
+
+## Nature types
+
+```{r}
+Summary2 <- Summary %>% dplyr::filter(habitat %in% MoreThanFive$habitat, nature_dry_cv < median(Summary$nature_dry_cv))
+
+G2 <-  ggplot(Summary2, aes(x = reorder(habitat, nature_dry_mean), y = nature_dry_mean)) +
+  geom_boxplot() +
+  theme_bw() +
+  labs(x = "Habitat", y = "Average proportion of nature dry")
+
+ggplotly(G2)
+```
+
+## Candidate points
+
+```{r}
+Candidates <- readRDS("Candidates.rds") %>% ungroup() %>% dplyr::filter(habitat %in% MoreThanFive$habitat) %>% dplyr::select("akt_id", "year", "habitat", "Patch_Size", "sp_richness", 
+"nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
+"agriculture_intensive_permanent_crops_mean",
+"agriculture_intensive_permanent_crops_cv", "lon", "lat")
+```
+
+
+* Among the most common habitats (More than five)
+* Coefficient of variation lower than `r round(median(Summary$nature_dry_cv),2)`
+* Total number `r nrow(Candidates)`
+
+## Map Candidates
+
+```{r}
+labels <- paste(
+    "<strong>Habitat: </strong>", Candidates$habitat,"<br>", "<strong>Species richness: </strong>", Candidates$sp_richness,"<br>", "<strong>Patch size: </strong>", Candidates$Patch_Size,"<br>") %>%
+    lapply(htmltools::HTML)
+
+pal <- colorBin(
+  palette = "viridis",
+  domain = Candidates$nature_dry_mean
+)
+
+l <- leaflet(data = Candidates) 
+esri <- c(Esri.WorldImagery = "Esri.WorldImagery", Esri = "Esri", Esri.WorldStreetMap = "Esri.WorldStreetMap", 
+Esri.DeLorme = "Esri.DeLorme", Esri.WorldTopoMap = "Esri.WorldTopoMap", 
+ Esri.WorldTerrain = "Esri.WorldTerrain", 
+Esri.WorldShadedRelief = "Esri.WorldShadedRelief", Esri.WorldPhysical = "Esri.WorldPhysical", 
+Esri.OceanBasemap = "Esri.OceanBasemap", Esri.NatGeoWorldMap = "Esri.NatGeoWorldMap", 
+Esri.WorldGrayCanvas = "Esri.WorldGrayCanvas")
+for (provider in esri) {
+  l <- l %>% addProviderTiles(provider, group = provider, options = providerTileOptions(minZoom = 1, maxZoom = 100))
+}
+l <- l %>%
+  addLayersControl(baseGroups = names(esri),
+    options = layersControlOptions(collapsed = TRUE),
+    overlayGroups = c("Catchment","Rewildling", "Sinks", "National Parks"))  %>%
+  htmlwidgets::onRender("
+    function(el, x) {
+      var myMap = this;
+      myMap.on('baselayerchange',
+        function (e) {
+          myMap.minimap.changeLayer(L.tileLayer.provider(e.name));
+        })
+    }") 
+
+l %>% 
+  addCircleMarkers(data = Candidates, color = ~pal(nature_dry_mean), popup = ~labels, label = ~labels) %>% 
+  addLegend("bottomright", pal = pal, values = ~nature_dry_mean,
+    title = "Mean dry Nature",
+    opacity = 1
+   ) %>% addScaleBar() %>% addMeasure(position = "bottomleft", primaryLengthUnit = "meters", primaryAreaUnit = "hectares")
+```
+
+
+## Table
+
+```{r}
+library(DT)
+Candidates %>%
+  arrange(desc(nature_dry_mean)) %>% 
+  datatable(extensions = 'Buttons', filter = 'top', 
+            options = list(dom = 'Blfrtip',
+                           scrollX='400px',
+                           scrollY='200px',
+                           buttons = c('copy', 'csv', 'excel'),
+                           lengthMenu = list(c(10,25,50,-1),
+                                             c(10,25,50,"All"))))  %>%
+    formatRound(columns=c("Patch_Size", "sp_richness", 
+"nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
+"agriculture_intensive_permanent_crops_mean",
+"agriculture_intensive_permanent_crops_cv"), digits=3)
+
+```
+
