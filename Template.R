@@ -73,17 +73,29 @@ AllPlots <- st_join(Novana_plots,Biow_plots, suffix=c("",".y")) %>%
   vect() %>%
   terra::project(terra::crs(basemap_d))
 
+saveRDS(AllPlots, "AllPlots.rds")
+
 
 Green <-  basemap_d %>% terra::extract(AllPlots) %>% pull(C_01)
 Green <- !is.na(Green)
 
 DryNaturePlot <- AllPlots[Green,]
 
+DryNaturePlot <-  DryNaturePlot[DryNaturePlot$Habitat %in% c("Kalkoverdrev",
+"Overdrev",
+"Surt overdrev",
+"Tør overdrev på kalkholdigt sand"),]
+
+
+DryNaturePlot %>% st_as_sf() %>% saveRDS("DryNaturePlot.rds")
+
+#saveRDS(DryNaturePlot, "DryNaturePlot.rds")
+
 key <- rat %>% dplyr::select(C_11, C_13) %>% distinct() %>% rename(value = C_11, habitat_type = C_13)
 
 key$habitat_type <- tm::removeNumbers(as.character(key$habitat_type)) %>% str_trim()
 
-distances <- c(500, 1000, 5000, 10000)
+distances <- c(500, 1000, 5000)
 
 MAXES <- list()
 
@@ -134,7 +146,15 @@ for(x in 1:1000){
     IDs <- append(Selected, Intersected)
     NewDry <- NewDry[!(NewDry$AktID %in% IDs),]
   } else if (x != 1){
-    Max <- NewDry[NewDry$SpRichness == max(NewDry$SpRichness),]
+
+    if((x %% 2) == 0){
+      Max <- NewDry[NewDry$SpRichness == max(NewDry$SpRichness),]
+      print("Max")
+    } else if ((x %% 2) != 0){
+      Max <- NewDry[NewDry$SpRichness == min(NewDry$SpRichness),]
+      print("Min")
+    }
+
     Max <- Max[1,]
     Tables <- list()
     for(i in 1:length(distances)){
@@ -224,8 +244,6 @@ MoreThanFive <- Summary %>%
   arrange(desc(n))
 
 
-ggplot(Summary, aes(x = nature_dry_mean, y = nature_dry_sd)) + geom_point() +
-  theme_bw()
 
 ggplot(Summary, aes(x = nature_dry_mean, y = nature_dry_cv)) + geom_point() +
   theme_bw() +
