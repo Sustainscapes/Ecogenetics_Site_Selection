@@ -95,7 +95,7 @@ key <- rat %>% dplyr::select(C_11, C_13) %>% distinct() %>% rename(value = C_11,
 
 key$habitat_type <- tm::removeNumbers(as.character(key$habitat_type)) %>% str_trim()
 
-distances <- c(500, 1000, 5000)
+distances <- c(500, 1000, 2500)
 
 MAXES <- list()
 
@@ -209,7 +209,7 @@ for(x in 1:1000){
 SuperMax <- MAXES %>% bind_rows()  %>%
   replace(is.na(.), 0)
 
-saveRDS(SuperMax, "SuperMax.rds")
+saveRDS(SuperMax, "SuperMax_2500.rds")
 
 
 SuperMaxCoords <- SuperMax %>%
@@ -223,7 +223,7 @@ SuperMaxCoords$akt_id <- SuperMax$akt_id
 SuperMaxCoords <- SuperMaxCoords %>%
   distinct()
 
-saveRDS(SuperMaxCoords, "SuperMaxCoords.rds")
+saveRDS(SuperMaxCoords, "SuperMaxCoords_2500.rds")
 
 Summary <- SuperMax %>%
   as.data.frame() %>%
@@ -232,7 +232,7 @@ Summary <- SuperMax %>%
   dplyr::group_by(akt_id, year, habitat, habitat_id, Patch_Size, sp_richness) %>%
   summarise_all(.funs = list(mean = mean, sd = sd, cv = cv))
 
-saveRDS(Summary, "Summary.rds")
+saveRDS(Summary, "Summary_2500.rds")
 
 
 MoreThanFive <- Summary %>%
