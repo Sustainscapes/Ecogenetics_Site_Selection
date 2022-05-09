@@ -24,9 +24,6 @@ options("kableExtra.html.bsTable" = T)
 
 ## Candidate plots
 
-```{r}
-AllPlots <- readRDS("AllPlots.rds")
-```
 
 * 100,594 sites
 * Includes NOVANA, Biowide and paragraph 3
@@ -49,10 +46,10 @@ leaflet(DryNaturePlots) %>%
 ## Select by higher diversity
 
 * Select highest (Diversity, species richness and Artscore)
-* Ensure 10 km minimum distance to closest neighbour
+* Ensure 5 km minimum distance to closest neighbour
 * Compute 
     + Patch area [ha]
-    + Mean proportion of Dry Nature (500, 1000, 5000, 10000)
+    + Mean proportion of Dry Nature (500, 1000, 5000)
     + CV of dry nature
 * Only for habitats with more than 5 occurrences
 
@@ -91,13 +88,15 @@ G2 <-  ggplot(Summary2, aes(x = reorder(habitat, nature_dry_mean), y = nature_dr
 ggplotly(G2)
 ```
 
+
+
 ## Candidate points
 
 ```{r}
-Candidates <- readRDS("Candidates.rds") %>% ungroup() %>% dplyr::filter(habitat %in% MoreThanFive$habitat) %>% dplyr::select("akt_id", "year", "habitat", "Patch_Size", "sp_richness", 
+Candidates <- readRDS("CandidatesCont.rds") %>% ungroup() %>% dplyr::filter(habitat %in% MoreThanFive$habitat) %>% dplyr::select("akt_id", "year", "habitat", "Patch_Size", "sp_richness", 
 "nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
 "agriculture_intensive_permanent_crops_mean",
-"agriculture_intensive_permanent_crops_cv", "lon", "lat")
+"agriculture_intensive_permanent_crops_cv", "Tempcont", "lon", "lat")
 ```
 
 
@@ -105,11 +104,22 @@ Candidates <- readRDS("Candidates.rds") %>% ungroup() %>% dplyr::filter(habitat 
 * Coefficient of variation lower than `r round(median(Summary$nature_dry_cv),2)`
 * Total number `r nrow(Candidates)`
 
+## Temporal continuity
+
+```{r}
+G2 <-  ggplot(Candidates, aes(x = nature_dry_mean, y = Tempcont)) +
+  geom_point(aes(color = habitat), alpha = 0.5) +
+  theme_bw() +
+  labs(y = "Number of years with same land use", x = "Average proportion of nature dry")
+
+ggplotly(G2)
+```
+
 ## Map Candidates
 
 ```{r}
 labels <- paste(
-    "<strong>Habitat: </strong>", Candidates$habitat,"<br>", "<strong>Species richness: </strong>", Candidates$sp_richness,"<br>", "<strong>Patch size: </strong>", Candidates$Patch_Size,"<br>") %>%
+    "<strong>Habitat: </strong>", Candidates$habitat,"<br>", "<strong>Species richness: </strong>", Candidates$sp_richness,"<br>", "<strong>Patch size: </strong>", Candidates$Patch_Size,"<br>", "<strong>Temporal continuity: </strong>", Candidates$Tempcont,"<br>") %>%
     lapply(htmltools::HTML)
 
 pal <- colorBin(
@@ -118,19 +128,14 @@ pal <- colorBin(
 )
 
 l <- leaflet(data = Candidates) 
-esri <- c(Esri.WorldImagery = "Esri.WorldImagery", Esri = "Esri", Esri.WorldStreetMap = "Esri.WorldStreetMap", 
-Esri.DeLorme = "Esri.DeLorme", Esri.WorldTopoMap = "Esri.WorldTopoMap", 
- Esri.WorldTerrain = "Esri.WorldTerrain", 
-Esri.WorldShadedRelief = "Esri.WorldShadedRelief", Esri.WorldPhysical = "Esri.WorldPhysical", 
-Esri.OceanBasemap = "Esri.OceanBasemap", Esri.NatGeoWorldMap = "Esri.NatGeoWorldMap", 
-Esri.WorldGrayCanvas = "Esri.WorldGrayCanvas")
+esri <- c(Esri.WorldImagery = "Esri.WorldImagery", Esri.WorldStreetMap = "Esri.WorldStreetMap", Esri.WorldTopoMap = "Esri.WorldTopoMap", 
+ Esri.WorldTerrain = "Esri.WorldTerrain")
 for (provider in esri) {
   l <- l %>% addProviderTiles(provider, group = provider, options = providerTileOptions(minZoom = 1, maxZoom = 100))
 }
 l <- l %>%
   addLayersControl(baseGroups = names(esri),
-    options = layersControlOptions(collapsed = TRUE),
-    overlayGroups = c("Catchment","Rewildling", "Sinks", "National Parks"))  %>%
+    options = layersControlOptions(collapsed = TRUE))  %>%
   htmlwidgets::onRender("
     function(el, x) {
       var myMap = this;
@@ -169,3 +174,7 @@ Candidates %>%
 
 ```
 
+
+## Check for selection
+
+* [Here](https://rpubs.com/derek_corcoran/Ecogenetics_Filters)
