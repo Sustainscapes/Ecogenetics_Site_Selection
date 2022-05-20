@@ -18,28 +18,31 @@ library(crosstalk)
 library(leaflet)
 library(terra)
 library(sf)
-library(d3scatter)
 library(DT)
 ```
 
 
 ```{r}
-Summary <- readRDS("Summary.rds")
+Summary <- readRDS("Summary_2500.rds")
 MoreThanFive <- Summary %>%
   as.data.frame() %>%
-  dplyr::filter(nature_dry_cv < median(Summary$nature_dry_cv)) %>% 
+  dplyr::filter(total_nature_cv < median(Summary$total_nature_cv)) %>% 
   replace(is.na(.), 0) %>%
   group_by(habitat) %>%
   summarise(n = n()) %>%
   dplyr::filter(n > 5) %>%
   arrange(desc(n)) 
 
-
-Candidates <- readRDS("CandidatesCont.rds") %>% ungroup() %>% dplyr::filter(habitat %in% MoreThanFive$habitat) %>% dplyr::select("akt_id", "year", "habitat", "Patch_Size", "sp_richness", 
-"nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
+Candidates <- readRDS("CandidatesDryCont_2500.rds") %>% ungroup() %>% dplyr::filter(habitat %in% MoreThanFive$habitat) %>% dplyr::select("akt_id", "year", "habitat", "Patch_Size", "sp_richness","total_nature_mean", "total_nature_cv", "nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
 "agriculture_intensive_permanent_crops_mean",
-"agriculture_intensive_permanent_crops_cv", "Tempcont", "lon", "lat") %>% drop_na() %>% 
-  mutate(Tempcont = as.character(Tempcont), Tempcont = fct_relevel(Tempcont, "6", "12", "18", "28"))
+"agriculture_intensive_permanent_crops_cv", "Tempcont", "lon", "lat") %>% drop_na()
+
+Candidates <-  Candidates  %>% 
+  mutate(Tempcont = as.character(Tempcont), Tempcont = fct_relevel(Tempcont, "6", "12", "18", "28")) %>% 
+  mutate(Continuity = case_when(total_nature_mean > median(Candidates$total_nature_mean) & Tempcont %in% c("18", "28") ~ "High spatial/high temporal",
+                  total_nature_mean > median(Candidates$total_nature_mean) & Tempcont %in% c("6", "12") ~ "High spatial/low temporal", 
+                  total_nature_mean <= median(Candidates$total_nature_mean) & Tempcont %in% c("6", "12") ~ "Low spatial/low temporal",
+                  total_nature_mean <= median(Candidates$total_nature_mean) & Tempcont %in% c("18", "28") ~ "Low spatial/high temporal"))
 ```
 
 
@@ -49,9 +52,9 @@ Candidates <- readRDS("CandidatesCont.rds") %>% ungroup() %>% dplyr::filter(habi
     "<strong>Habitat: </strong>", Candidates$habitat,"<br>", "<strong>Species richness: </strong>", Candidates$sp_richness,"<br>", "<strong>Patch size: </strong>", Candidates$Patch_Size,"<br>", "<strong>Temporal continuity: </strong>", Candidates$Tempcont,"<br>") %>%
     lapply(htmltools::HTML)
 
-pal <- colorBin(
-  palette = "viridis",
-  domain = Candidates$nature_dry_mean
+pal <- colorFactor(
+  palette = c('#66c2a5','#fc8d62','#8da0cb','#e78ac3'),
+  domain = Candidates$Continuity
 )
 
 shared_dataset <- SharedData$new(Candidates)
@@ -62,18 +65,18 @@ esri <- c(Esri.WorldImagery = "Esri.WorldImagery", Esri.WorldStreetMap = "Esri.W
 
 ```{r}
 bscols(list(
-filter_slider("Patch_Size", "Patch size [Ha]", shared_dataset, column=~Patch_Size, step=10, width=250, max = 640, min = 0),
+filter_slider("Patch_Size", "Patch size [Ha]", shared_dataset, column=~Patch_Size, step=10, width=250, max = (round(ceiling(max(Candidates$Patch_Size)), -1) + 10), min = 0),
 filter_checkbox("habitat", "habitat", shared_dataset, ~habitat, inline = TRUE),
 filter_checkbox("Tempcont", "Temporal continuity [years]", shared_dataset, ~Tempcont, inline = T)
 ))
 
 bscols(
-  ggplotly(ggplot(shared_dataset, aes(x = nature_dry_mean, y = as.numeric(Tempcont))) + geom_point(aes(color = habitat)) + theme_bw() + labs(x = "Mean proportin dry nature", y = "Temporal continuity in years")),
+  ggplotly(ggplot(shared_dataset, aes(x = total_nature_mean, y = as.numeric(Tempcont))) + geom_point(aes(color = habitat)) + theme_bw() + labs(x = "Mean proportin dry nature", y = "Temporal continuity in years")),
   leaflet(data = shared_dataset)  %>% 
   addProviderTiles("Esri.WorldImagery", options = providerTileOptions(minZoom = 1, maxZoom = 100))  %>% 
-  addCircleMarkers(data = shared_dataset, color = ~pal(nature_dry_mean), popup = ~labels, label = ~labels) %>% 
-  addLegend("bottomright", pal = pal, values = ~nature_dry_mean,
-    title = "Mean dry Nature",
+  addCircleMarkers(data = shared_dataset, color = ~pal(Continuity ), popup = ~labels, label = ~labels) %>% 
+  addLegend("bottomright", pal = pal, values = ~Continuity,
+    title = "Continuity",
     opacity = 1
    ) %>% addScaleBar() %>% addMeasure(position = "bottomleft", primaryLengthUnit = "meters", primaryAreaUnit = "hectares")
 )
@@ -84,83 +87,12 @@ shared_dataset %>%
             options = list(dom = 'Blfrtip',
                            scrollX='400px',
                            scrollY='200px',
-                           buttons = c('copy', 'csv', 'excel'),
+                           buttons = c('copy', 'csv', 'excel',I('colvis')),
                            lengthMenu = list(c(25,50,-1),
                                              c(25,50,"All"))))  %>%
     formatRound(columns=c("Patch_Size", "sp_richness", 
-"nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
+"total_nature_mean", "total_nature_cv", "nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
 "agriculture_intensive_permanent_crops_mean",
 "agriculture_intensive_permanent_crops_cv"), digits=3)
 ```
 
-## Wet Nature
-
-```{r}
-Summary <- readRDS("SummaryWet.rds")
-MoreThanFive <- Summary %>%
-  as.data.frame() %>%
-  dplyr::filter(nature_dry_cv < median(Summary$nature_dry_cv)) %>% 
-  replace(is.na(.), 0) %>%
-  group_by(habitat) %>%
-  summarise(n = n()) %>%
-  dplyr::filter(n > 5) %>%
-  arrange(desc(n)) 
-
-
-Candidates <- readRDS("CandidatesWetCont.rds") %>% ungroup() %>% dplyr::filter(habitat %in% MoreThanFive$habitat) %>% dplyr::select("akt_id", "year", "habitat", "Patch_Size", "sp_richness", 
-"nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
-"agriculture_intensive_permanent_crops_mean",
-"agriculture_intensive_permanent_crops_cv", "Tempcont", "lon", "lat") %>% drop_na() %>% 
-  mutate(Tempcont = as.character(Tempcont), Tempcont = fct_relevel(Tempcont, "6", "12", "18", "28"))
-```
-
-
-```{r}
-
-  labels <- paste(
-    "<strong>Habitat: </strong>", Candidates$habitat,"<br>", "<strong>Species richness: </strong>", Candidates$sp_richness,"<br>", "<strong>Patch size: </strong>", Candidates$Patch_Size,"<br>", "<strong>Temporal continuity: </strong>", Candidates$Tempcont,"<br>") %>%
-    lapply(htmltools::HTML)
-
-pal <- colorBin(
-  palette = "viridis",
-  domain = Candidates$nature_dry_mean
-)
-
-shared_dataset <- SharedData$new(Candidates)
-
-esri <- c(Esri.WorldImagery = "Esri.WorldImagery", Esri.WorldStreetMap = "Esri.WorldStreetMap", Esri.WorldTopoMap = "Esri.WorldTopoMap", 
- Esri.WorldTerrain = "Esri.WorldTerrain")
-```
-
-```{r}
-bscols(list(
-filter_slider("Patch_Size", "Patch size [Ha]", shared_dataset, column=~Patch_Size, step=10, width=250, max = 450, min = 0),
-filter_checkbox("habitat", "habitat", shared_dataset, ~habitat, inline = TRUE),
-filter_checkbox("Tempcont", "Temporal continuity [years]", shared_dataset, ~Tempcont, inline = T)
-))
-
-bscols(
-  ggplotly(ggplot(shared_dataset, aes(x = nature_dry_mean, y = as.numeric(Tempcont))) + geom_point(aes(color = habitat)) + theme_bw() + labs(x = "Mean proportin wet nature", y = "Temporal continuity in years")),
-  leaflet(data = shared_dataset)  %>% 
-  addProviderTiles("Esri.WorldImagery", options = providerTileOptions(minZoom = 1, maxZoom = 100))  %>% 
-  addCircleMarkers(data = shared_dataset, color = ~pal(nature_dry_mean), popup = ~labels, label = ~labels) %>% 
-  addLegend("bottomright", pal = pal, values = ~nature_dry_mean,
-    title = "Mean dry Nature",
-    opacity = 1
-   ) %>% addScaleBar() %>% addMeasure(position = "bottomleft", primaryLengthUnit = "meters", primaryAreaUnit = "hectares")
-)
-
-
-shared_dataset %>%
-  datatable(extensions = 'Buttons', filter = 'top', 
-            options = list(dom = 'Blfrtip',
-                           scrollX='400px',
-                           scrollY='200px',
-                           buttons = c('copy', 'csv', 'excel'),
-                           lengthMenu = list(c(25,50,-1),
-                                             c(25,50,"All"))))  %>%
-    formatRound(columns=c("Patch_Size", "sp_richness", 
-"nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
-"agriculture_intensive_permanent_crops_mean",
-"agriculture_intensive_permanent_crops_cv"), digits=3)
-```

@@ -56,10 +56,10 @@ leaflet(DryNaturePlots) %>%
 ## Proportion vs CV
 
 ```{r}
-Summary <- readRDS("Summary.rds")
+Summary <- readRDS("Summary_2500.rds")
 MoreThanFive <- Summary %>%
   as.data.frame() %>%
-  dplyr::filter(nature_dry_cv < median(Summary$nature_dry_cv)) %>% 
+  dplyr::filter(total_nature_cv < median(Summary$total_nature_cv)) %>% 
   replace(is.na(.), 0) %>%
   group_by(habitat) %>%
   summarise(n = n()) %>%
@@ -67,10 +67,10 @@ MoreThanFive <- Summary %>%
   arrange(desc(n))
 
 
-G <- ggplot(Summary, aes(x = nature_dry_mean, y = nature_dry_cv)) + geom_point() +
+G <- ggplot(Summary, aes(x = total_nature_mean, y = total_nature_cv)) + geom_point() +
   theme_bw() +
-  geom_hline(yintercept = median(Summary$nature_dry_cv), lty = 2, color = "red") +
-  labs(y = "Coefficient of variation of Nature dry", x = "Average proportion of nature dry")
+  geom_hline(yintercept = median(Summary$total_nature_cv), lty = 2, color = "red") +
+  labs(y = "Coefficient of variation of Total Nature", x = "Average proportion of Total Nature")
 
 ggplotly(G)
 ```
@@ -78,12 +78,12 @@ ggplotly(G)
 ## Nature types
 
 ```{r}
-Summary2 <- Summary %>% dplyr::filter(habitat %in% MoreThanFive$habitat, nature_dry_cv < median(Summary$nature_dry_cv))
+Summary2 <- Summary %>% dplyr::filter(habitat %in% MoreThanFive$habitat, total_nature_cv < median(Summary$total_nature_cv))
 
-G2 <-  ggplot(Summary2, aes(x = reorder(habitat, nature_dry_mean), y = nature_dry_mean)) +
+G2 <-  ggplot(Summary2, aes(x = reorder(habitat, total_nature_mean), y = total_nature_mean)) +
   geom_boxplot() +
   theme_bw() +
-  labs(x = "Habitat", y = "Average proportion of nature dry")
+  labs(x = "Habitat", y = "Average proportion of total nature")
 
 ggplotly(G2)
 ```
@@ -93,7 +93,7 @@ ggplotly(G2)
 ## Candidate points
 
 ```{r}
-Candidates <- readRDS("CandidatesCont.rds") %>% ungroup() %>% dplyr::filter(habitat %in% MoreThanFive$habitat) %>% dplyr::select("akt_id", "year", "habitat", "Patch_Size", "sp_richness", 
+Candidates <- readRDS("CandidatesDryCont_2500.rds") %>% ungroup() %>% dplyr::filter(habitat %in% MoreThanFive$habitat) %>% dplyr::select("akt_id", "year", "habitat", "Patch_Size", "sp_richness", "total_nature_mean", "total_nature_cv",
 "nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
 "agriculture_intensive_permanent_crops_mean",
 "agriculture_intensive_permanent_crops_cv", "Tempcont", "lon", "lat")
@@ -101,16 +101,16 @@ Candidates <- readRDS("CandidatesCont.rds") %>% ungroup() %>% dplyr::filter(habi
 
 
 * Among the most common habitats (More than five)
-* Coefficient of variation lower than `r round(median(Summary$nature_dry_cv),2)`
+* Coefficient of variation lower than `r round(median(Summary$total_nature_cv),2)`
 * Total number `r nrow(Candidates)`
 
 ## Temporal continuity
 
 ```{r}
-G2 <-  ggplot(Candidates, aes(x = nature_dry_mean, y = Tempcont)) +
+G2 <-  ggplot(Candidates, aes(x = total_nature_mean, y = Tempcont)) +
   geom_point(aes(color = habitat), alpha = 0.5) +
   theme_bw() +
-  labs(y = "Number of years with same land use", x = "Average proportion of nature dry")
+  labs(y = "Number of years with same land use", x = "Average proportion of nature")
 
 ggplotly(G2)
 ```
@@ -124,7 +124,7 @@ labels <- paste(
 
 pal <- colorBin(
   palette = "viridis",
-  domain = Candidates$nature_dry_mean
+  domain = Candidates$total_nature_mean
 )
 
 l <- leaflet(data = Candidates) 
@@ -146,9 +146,9 @@ l <- l %>%
     }") 
 
 l %>% 
-  addCircleMarkers(data = Candidates, color = ~pal(nature_dry_mean), popup = ~labels, label = ~labels) %>% 
-  addLegend("bottomright", pal = pal, values = ~nature_dry_mean,
-    title = "Mean dry Nature",
+  addCircleMarkers(data = Candidates, color = ~pal(total_nature_mean), popup = ~labels, label = ~labels) %>% 
+  addLegend("bottomright", pal = pal, values = ~total_nature_mean,
+    title = "Mean Nature Proportion",
     opacity = 1
    ) %>% addScaleBar() %>% addMeasure(position = "bottomleft", primaryLengthUnit = "meters", primaryAreaUnit = "hectares")
 ```
@@ -159,7 +159,7 @@ l %>%
 ```{r}
 library(DT)
 Candidates %>%
-  arrange(desc(nature_dry_mean)) %>% 
+  arrange(desc(total_nature_mean)) %>% 
   datatable(extensions = 'Buttons', filter = 'top', 
             options = list(dom = 'Blfrtip',
                            scrollX='400px',
@@ -167,7 +167,7 @@ Candidates %>%
                            buttons = c('copy', 'csv', 'excel'),
                            lengthMenu = list(c(10,25,50,-1),
                                              c(10,25,50,"All"))))  %>%
-    formatRound(columns=c("Patch_Size", "sp_richness", 
+    formatRound(columns=c("Patch_Size", "sp_richness", "total_nature_mean", "total_nature_cv",
 "nature_dry_mean", "nature_dry_cv", "lake_mean", "lake_cv","forest_mean", "forest_cv", "agriculture_intensive_temporary_crops_mean", "agriculture_intensive_temporary_crops_cv", 
 "agriculture_intensive_permanent_crops_mean",
 "agriculture_intensive_permanent_crops_cv"), digits=3)

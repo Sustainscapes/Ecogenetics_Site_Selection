@@ -111,8 +111,16 @@ for(x in 1:1000){
       Table <- Area %>% terra::freq() %>% left_join(key) %>% arrange(desc(count))
 
       Table$Prop <- round(100*(Table$count/sum(Table$count)), 2)
+      Total_Nature <- Table %>% dplyr::filter(habitat_type %in% c("Agriculture, intensive, permanent crops", "Agriculture, intensive, temporary crops","Forest", "Forest, wet","Nature, dry", "Nature, wet", "Lake", "Stream", "Sea")) %>%
+        dplyr::select(Prop) %>%
+        summarize_all(sum) %>%
+        mutate(habitat_type = "Total nature")
+
+      Table <- Table %>% bind_rows(Total_Nature)
+
+
       Tables[[i]] <- Table %>% dplyr::filter(habitat_type %in%
-                                               c("Sea", "Agriculture, intensive, temporary crops", "Nature, dry", "Low built up", "Forest", "Nature, wet", "Agriculture, intensive, permanent crops", "Stream", "Lake", "Industry / business", "Railway", "Building", "Other built up", "High built up",  "City centre", "Road, paved", "Road, not paved")) %>%
+                                               c("Sea", "Agriculture, intensive, temporary crops", "Nature, dry", "Low built up", "Forest", "Nature, wet", "Agriculture, intensive, permanent crops", "Stream", "Lake", "Industry / business", "Railway", "Building", "Other built up", "High built up",  "City centre", "Road, paved", "Road, not paved", "Total nature")) %>%
         dplyr::select(habitat_type, Prop) %>% pivot_wider(names_from = habitat_type, values_from = Prop) %>% mutate(distance = distances[i], AktID = Max$AktID) %>% dplyr::relocate(AktID, .before = everything()) %>%
         janitor::clean_names()
 
@@ -164,10 +172,19 @@ for(x in 1:1000){
       Table <- Area %>% terra::freq() %>% left_join(key) %>% arrange(desc(count))
 
       Table$Prop <- round(100*(Table$count/sum(Table$count)), 2)
+      Total_Nature <- Table %>% dplyr::filter(habitat_type %in% c("Agriculture, intensive, permanent crops", "Agriculture, intensive, temporary crops","Forest", "Forest, wet","Nature, dry", "Nature, wet", "Lake", "Stream", "Sea")) %>%
+        dplyr::select(Prop) %>%
+        summarize_all(sum) %>%
+        mutate(habitat_type = "Total nature")
+
+      Table <- Table %>% bind_rows(Total_Nature)
+
+
       Tables[[i]] <- Table %>% dplyr::filter(habitat_type %in%
-                                               c("Sea", "Agriculture, intensive, temporary crops", "Nature, dry", "Low built up", "Forest", "Nature, wet", "Agriculture, intensive, permanent crops", "Stream", "Lake", "Industry / business", "Railway", "Building", "Other built up", "High built up",  "City centre", "Road, paved", "Road, not paved")) %>%
+                                               c("Sea", "Agriculture, intensive, temporary crops", "Nature, dry", "Low built up", "Forest", "Nature, wet", "Agriculture, intensive, permanent crops", "Stream", "Lake", "Industry / business", "Railway", "Building", "Other built up", "High built up",  "City centre", "Road, paved", "Road, not paved", "Total nature")) %>%
         dplyr::select(habitat_type, Prop) %>% pivot_wider(names_from = habitat_type, values_from = Prop) %>% mutate(distance = distances[i], AktID = Max$AktID) %>% dplyr::relocate(AktID, .before = everything()) %>%
         janitor::clean_names()
+
 
     }
 
@@ -228,7 +245,7 @@ saveRDS(SuperMaxCoords, "SuperMaxCoords_2500.rds")
 Summary <- SuperMax %>%
   as.data.frame() %>%
   replace(is.na(.), 0) %>%
-  dplyr::select(akt_id, year, habitat, habitat_id, Patch_Size, sp_richness, nature_dry, lake, forest, agriculture_intensive_temporary_crops, agriculture_intensive_permanent_crops) %>%
+  dplyr::select(akt_id, year, habitat, habitat_id, Patch_Size, sp_richness, nature_dry, lake, forest, agriculture_intensive_temporary_crops, agriculture_intensive_permanent_crops, total_nature) %>%
   dplyr::group_by(akt_id, year, habitat, habitat_id, Patch_Size, sp_richness) %>%
   summarise_all(.funs = list(mean = mean, sd = sd, cv = cv))
 
@@ -245,13 +262,13 @@ MoreThanFive <- Summary %>%
 
 
 
-ggplot(Summary, aes(x = nature_dry_mean, y = nature_dry_cv)) + geom_point() +
+ggplot(Summary, aes(x = total_nature_mean, y = total_nature_cv)) + geom_point() +
   theme_bw() +
-  geom_hline(yintercept = median(Summary$nature_dry_cv), lty = 2, color = "red")
+  geom_hline(yintercept = median(Summary$total_nature_cv), lty = 2, color = "red")
 
-ggplot(Summary, aes(x = nature_dry_mean, y = nature_dry_cv)) + geom_point(aes(size = Patch_Size)) +
+ggplot(Summary, aes(x = total_nature_mean, y = total_nature_cv)) + geom_point(aes(size = Patch_Size)) +
   theme_bw() +
-  geom_hline(yintercept = median(Summary$nature_dry_cv), lty = 2, color = "red")
+  geom_hline(yintercept = median(Summary$total_nature_cv), lty = 2, color = "red")
 
 ### For habitats with more than five
 
@@ -264,15 +281,14 @@ Summary %>% dplyr::filter(habitat %in% MoreThanFive$habitat) %>%
 
 Candidates <- Summary %>%
   dplyr::filter(habitat %in% MoreThanFive$habitat,
-                nature_dry_cv < median(Summary$nature_dry_cv)) %>%
+                total_nature_cv < median(Summary$total_nature_cv)) %>%
   left_join(SuperMaxCoords)
 
-saveRDS(Candidates, "Candidates.rds")
+saveRDS(Candidates, "Candidates_2500.rds")
 
 SuperCandidates <- SuperMax %>% dplyr::filter(akt_id %in% Candidates$akt_id) %>%
   sf::st_transform('+proj=longlat +datum=WGS84')
 
-Candidates$sp_richness %>% hist()
 
 library(leaflet)
 library(sf)

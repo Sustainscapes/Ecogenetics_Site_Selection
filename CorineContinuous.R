@@ -17,10 +17,10 @@ Test3 <- rast("u2012_clc2006_v2020_20u1_raster100m/DATA/U2012_CLC2006_V2020_20u1
 Test4 <- rast("u2006_clc2000_v2020_20u1_raster100m/DATA/U2006_CLC2000_V2020_20u1.tif")
 Test5 <- rast("u2000_clc1990_v2020_20u1_raster100m/DATA/U2000_CLC1990_V2020_20u1.tif")
 
-SuperCandidatesWet <- readRDS("CandidatesWet.rds") %>%
+SuperCandidatesDry <- readRDS("Candidates_2500.rds") %>%
   st_as_sf(coords = c("lon", "lat"), crs = "+proj=longlat +datum=WGS84")
 
-SCW <- terra::project(vect(SuperCandidatesWet), crs(Test))
+SCW <- terra::project(vect(SuperCandidatesDry), crs(Test))
 
 
 
@@ -47,10 +47,10 @@ Landuse <- list(Test5, Test4, Test3, Test, Test2) %>% purrr::reduce(full_join) %
   dplyr::select(Tempcont)
 
 
-CandidatesWetCont <- readRDS("CandidatesWet.rds") %>%
+CandidatesDryCont <- readRDS("Candidates_2500.rds") %>%
   cbind(Landuse)
 
-saveRDS(CandidatesWetCont, "CandidatesWetCont.rds")
+saveRDS(CandidatesDryCont, "CandidatesDryCont_2500.rds")
 
 
 ########
